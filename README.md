@@ -7,11 +7,11 @@ Minimalist pixelated desktop application that reads Twitch chat messages aloud u
 ## Features
 - **Pixel UI**: Custom frameless window with interactive status indicator `( ● ) LIVE` / `( ○ ) OFFLINE` and pixel typography (`Monocraft`).
 - **Dashboard (Split View)**: Settings and live chat stream visible side-by-side on a single screen.
-- **Voice & Volume Controls**: Selection of Windows SAPI5 voice engines and volume slider with a one-click `[ TEST VOICE ]` preview button.
-- **System Adaptation**: Automatically inherits the Windows system accent color (via DWM registry) and system language (`SYSTEM`, `RU`, `EN`).
-- **Inline Navigation**: Seamlessly switch between `[ LOG ]`, `[ BLACKLIST ]`, and `[ REWARDS ]` «(coming soon)» without modal popups.
-- **Blacklist Filter**: Ignore specific chat users with fast addition and removal (via button or `Delete` key).
 - **Voice per language**: choose separate Windows SAPI5 voices for Russian and English. Each chat message is split by alphabet, so mixed text is read by the matching voice. Defaults: the first Russian voice, and Microsoft Zira for English if installed. The `[ TEST VOICE ]` button reads one phrase in each language.
+- Volume slider and one-click [ TEST VOICE ] preview
+- **System Adaptation**: Automatically inherits the Windows system accent color (via DWM registry) and system language (`SYSTEM`, `RU`, `EN`).
+- **Inline Navigation**: Seamlessly switch between `[ LOG ]`, `[ BLACKLIST ]`, and `[ REWARDS ]` (coming soon) without modal popups.
+- **Blacklist Filter**: Ignore specific chat users with fast addition and removal (via button or `Delete` key).
 
 ## Built with
 - Python 3
