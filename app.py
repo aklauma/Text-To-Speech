@@ -5,6 +5,7 @@ import queue
 import sys
 import threading
 import time
+import re
 from datetime import datetime
 from xml.sax.saxutils import escape
 
@@ -600,6 +601,38 @@ RATE = 0
 PAUSE_MS = 300
 TAIL_SEC = 0.3
 
+_TOKEN = re.compile(r'[A-Za-z]+|[А-Яа-яЁё]+|[^A-Za-zА-Яа-яЁё]+')
+LANG_IDS = {'ru': 0x19, 'en': 0x09}
+
+
+def split_by_script(text):
+    segs = []
+    for m in _TOKEN.finditer(text):
+        tok = m.group()
+        if re.match(r'[A-Za-z]', tok):
+            lang = 'en'
+        elif re.match(r'[А-Яа-яЁё]', tok):
+            lang = 'ru'
+        else:
+            lang = None
+        if lang is None:
+            if segs:
+                segs[-1][1] += tok
+            else:
+                segs.append([None, tok])
+        elif segs and segs[-1][0] in (None, lang):
+            segs[-1][0] = lang
+            segs[-1][1] += tok
+        else:
+            segs.append([lang, tok])
+    return segs
+
+
+def voice_lang_id(v):
+    try:
+        return int(v.GetAttribute('Language').split(';')[0], 16) & 0x3FF
+    except Exception:
+        return None
 
 class BaseTTS:
     def __init__(self):
@@ -609,9 +642,10 @@ class BaseTTS:
         self.is_mock = False
         self._thread = threading.Thread(target=self._worker, daemon=True)
         self._thread.start()
+        self.voice_by_lang = {}  # {'ru': 'описание голоса', 'en': '...'}
 
     def speak(self, text: str):
-        text = text.replace('<', ' меньше чем ').strip()
+        text = text.strip()
         if not text:
             return
         if text[-1] not in '.!?…':
@@ -654,19 +688,48 @@ class WindowsSapiTTS(BaseTTS):
             print(f'SAPI Init Error: {e}')
             return
 
-        current = None
+        voices = list(sapi.GetVoices())
+
+        def find(desc):
+            for v in voices:
+                if v.GetDescription() == desc:
+                    return v
+            return None
+
+        def pick(lang, selected):
+            want = LANG_IDS.get(lang)
+            if want is None:
+                return selected
+            v = find(self.voice_by_lang.get(lang))
+            if v is not None:
+                return v
+            if lang == 'en':
+                for v in voices:
+                    if voice_lang_id(v) == want and 'Zira' in v.GetDescription():
+                        return v
+            for v in voices:
+                if voice_lang_id(v) == want:
+                    return v
+            return selected
+
         while True:
             text = self.q.get()
             try:
-                if self.voice_name and self.voice_name != current:
-                    for v in sapi.GetVoices():
-                        if v.GetDescription() == self.voice_name:
-                            sapi.Voice = v
-                            current = self.voice_name
-                            break
+                selected = None
+                for v in voices:
+                    if v.GetDescription() == self.voice_name:
+                        selected = v
+                        break
                 sapi.Volume = int(self.volume)
                 sapi.Rate = RATE
-                sapi.Speak(f'<silence msec="{PAUSE_MS}"/>{escape(text)}', 8)
+                first = True
+                for lang, chunk in split_by_script(text):
+                    v = pick(lang, selected)
+                    if v is not None:
+                        sapi.Voice = v
+                    pause = f'<silence msec="{PAUSE_MS}"/>' if first else ''
+                    sapi.Speak(pause + escape(chunk), 8)
+                    first = False
                 time.sleep(TAIL_SEC)
             except Exception as e:
                 print(f'SAPI TTS speak error: {e}')
