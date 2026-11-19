@@ -506,6 +506,8 @@ TRANSLATIONS = {
         'error_credentials': 'Ошибка: введите OAuth токен и имя канала',
         'added_blacklist': 'Добавлен в чёрный список: {name}',
         'removed_blacklist': 'Удалён из чёрного списка: {name}',
+        'voice_ru': 'РУССКИЙ ГОЛОС:',
+        'voice_en': 'АНГЛИЙСКИЙ ГОЛОС:',
     },
     'en': {
         'title': ':: TWITCH TTS',
@@ -546,6 +548,8 @@ TRANSLATIONS = {
         'error_credentials': 'Error: Enter OAuth token and Channel name',
         'added_blacklist': 'Added to blacklist: {name}',
         'removed_blacklist': 'Removed from blacklist: {name}',
+        'voice_ru': 'RUSSIAN VOICE:',
+        'voice_en': 'ENGLISH VOICE:',
     }
 }
 
@@ -635,6 +639,10 @@ def voice_lang_id(v):
         return None
 
 class BaseTTS:
+
+    def list_voices_by_lang(self):
+        return {'ru': [], 'en': []}
+
     def __init__(self):
         self.q = queue.Queue()
         self.voice_name = ''
@@ -666,6 +674,22 @@ class WindowsSapiTTS(BaseTTS):
     def __init__(self):
         super().__init__()
         self.is_mock = False
+
+    def list_voices_by_lang(self):
+        res = {'ru': [], 'en': []}
+        try:
+            import pythoncom
+            import win32com.client
+            pythoncom.CoInitialize()
+            sapi = win32com.client.Dispatch('SAPI.SpVoice')
+            for v in sapi.GetVoices():
+                lid = voice_lang_id(v)
+                for key, want in LANG_IDS.items():
+                    if lid == want:
+                        res[key].append(v.GetDescription())
+        except Exception as e:
+            print(f'Error grouping voices: {e}')
+        return res
 
     def list_voices(self):
         try:
@@ -776,6 +800,17 @@ def get_tts_engine() -> BaseTTS:
 
 def list_voices():
     return get_tts_engine().list_voices()
+
+def list_voices_by_lang():
+    return get_tts_engine().list_voices_by_lang()
+
+
+def default_voice(names, lang):
+    if lang == 'en':
+        for n in names:
+            if 'Zira' in n:
+                return n
+    return names[0] if names else ''
 
 
 # ===================================================================
@@ -968,11 +1003,17 @@ class ControlsPanel(QWidget):
 
         layout.addSpacing(4)
 
-        self.voice_lbl = QLabel(t('voice_engine'))
-        layout.addWidget(self.voice_lbl)
+        self.voice_ru_lbl = QLabel(t('voice_ru'))
+        layout.addWidget(self.voice_ru_lbl)
+        self.voice_ru_box = QComboBox()
+        layout.addWidget(self.voice_ru_box)
 
-        self.voice_box = QComboBox()
-        layout.addWidget(self.voice_box)
+        self.voice_en_lbl = QLabel(t('voice_en'))
+        layout.addWidget(self.voice_en_lbl)
+        self.voice_en_box = QComboBox()
+        layout.addWidget(self.voice_en_box)
+
+        self.voice_box = self.voice_ru_box
 
         layout.addSpacing(4)
 
@@ -1004,6 +1045,16 @@ class ControlsPanel(QWidget):
         self.start_btn.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.start_btn)
 
+    def set_voices(self, by_lang, all_voices, saved=None):
+        saved = saved or {}
+        for box, lang in ((self.voice_ru_box, 'ru'), (self.voice_en_box, 'en')):
+            names = by_lang.get(lang) or all_voices
+            box.clear()
+            box.addItems(names)
+            want = saved.get(lang) or default_voice(names, lang)
+            idx = box.findText(want)
+            box.setCurrentIndex(idx if idx >= 0 else 0)
+
     def update_texts(self, is_running=False):
         self.hdr.setText(t('config_controls'))
         self.lang_lbl.setText(t('language'))
@@ -1023,7 +1074,8 @@ class ControlsPanel(QWidget):
         self.remember_check.setText(t('remember_token'))
         self.channel_lbl.setText(t('twitch_channel'))
         self.channel_edit.setPlaceholderText(t('channel_placeholder'))
-        self.voice_lbl.setText(t('voice_engine'))
+        self.voice_ru_lbl.setText(t('voice_ru'))
+        self.voice_en_lbl.setText(t('voice_en'))
         self.vol_lbl.setText(t('volume'))
         self.test_btn.setText(t('test_voice'))
 
@@ -1319,14 +1371,15 @@ class Window(QMainWindow):
         root_layout.addLayout(content_layout)
 
     def _populate_voices(self):
-        voices = list_voices()
-        self.controls_panel.voice_box.clear()
-        self.controls_panel.voice_box.addItems(voices)
+        all_voices = list_voices()
+        by_lang = list_voices_by_lang()
+        self.controls_panel.set_voices(by_lang, all_voices)
 
     def _connect_signals(self):
         self.tabs_switch.tab_changed.connect(self.stacked_widget.setCurrentIndex)
         self.controls_panel.lang_box.currentIndexChanged.connect(self.on_language_changed)
-        self.controls_panel.voice_box.currentTextChanged.connect(self.apply_audio)
+        self.controls_panel.voice_ru_box.currentTextChanged.connect(self.apply_audio)
+        self.controls_panel.voice_en_box.currentTextChanged.connect(self.apply_audio)
         self.controls_panel.volume_slider.valueChanged.connect(self.apply_audio)
         self.controls_panel.test_btn.clicked.connect(self.test_speech)
         self.controls_panel.start_btn.clicked.connect(self.toggle_bot)
@@ -1445,13 +1498,18 @@ class Window(QMainWindow):
         self.rewards_panel.update_texts()
 
     def apply_audio(self, *_):
-        self.tts.voice_name = self.controls_panel.voice_box.currentText()
-        self.tts.volume = self.controls_panel.volume_slider.value()
+        c = self.controls_panel
+        ru = c.voice_ru_box.currentText()
+        en = c.voice_en_box.currentText()
+        self.tts.voice_by_lang = {'ru': ru, 'en': en}
+        self.tts.voice_name = ru or en
+        self.tts.volume = c.volume_slider.value()
 
     def test_speech(self):
         self.apply_audio()
-        phrase = t('test_phrase')
-        self.append_log(t('test_speech_log', voice=self.tts.voice_name, vol=self.tts.volume, text=phrase))
+        phrase = f"{TRANSLATIONS['ru']['test_phrase']} {TRANSLATIONS['en']['test_phrase']}"
+        voices = f"{self.tts.voice_by_lang.get('ru', '')} / {self.tts.voice_by_lang.get('en', '')}"
+        self.append_log(t('test_speech_log', voice=voices, vol=self.tts.volume, text=phrase))
         self.tts.speak(phrase)
 
     def append_log(self, text):
@@ -1546,9 +1604,11 @@ class Window(QMainWindow):
         self.controls_panel.volume_slider.setValue(vol)
         self.controls_panel.vol_val_lbl.setText(f'{vol}%')
 
-        i = self.controls_panel.voice_box.findText(s.get('voice', ''))
-        if i >= 0:
-            self.controls_panel.voice_box.setCurrentIndex(i)
+        c = self.controls_panel
+        for box, key in ((c.voice_ru_box, 'voice_ru'), (c.voice_en_box, 'voice_en')):
+            i = box.findText(s.get(key) or s.get('voice', ''))
+            if i >= 0:
+                box.setCurrentIndex(i)
 
         self.blacklist.update(str(n).lower() for n in s.get('blacklist', []))
         self.refresh_blacklist()
@@ -1556,7 +1616,8 @@ class Window(QMainWindow):
     def closeEvent(self, event):
         s = {
             'channel': self.controls_panel.channel_edit.text(),
-            'voice': self.controls_panel.voice_box.currentText(),
+            'voice_ru': self.controls_panel.voice_ru_box.currentText(),
+            'voice_en': self.controls_panel.voice_en_box.currentText(),
             'volume': self.controls_panel.volume_slider.value(),
             'token': (self.controls_panel.token_edit.text()
                       if self.controls_panel.remember_check.isChecked() else ''),
