@@ -1,43 +1,40 @@
-# Text-To-Speech
+# Twitch Text-To-Speech
 
-A Windows app that reads Twitch chat messages aloud using Windows SAPI5 voices.
+Minimalist pixelated desktop application that reads Twitch chat messages aloud using SAPI5 voices on Windows. Features a deep black pixel aesthetic, high-contrast typography, and dynamic adaptation to the Windows system accent color.
 
 ## Features
-- Reads chat messages that start with `!` (for example `!tts hello` or `!hello`)
-- Voice and volume selection
-- Blacklist of users that will be ignored
-- Log tab with all processed messages
+- **Pixel UI**: Custom frameless window with interactive status indicator `( ● ) LIVE` / `( ○ ) OFFLINE` and pixel typography (`Monocraft`).
+- **Dashboard (Split View)**: Settings and live chat stream visible side-by-side on a single screen.
+- **Voice & Volume Controls**: Selection of Windows SAPI5 voice engines and volume slider with a one-click `[ TEST VOICE ]` preview button.
+- **System Adaptation**: Automatically inherits the Windows system accent color (via DWM registry) and system language (`SYSTEM`, `RU`, `EN`).
+- **Inline Navigation**: Seamlessly switch between `[ LOG ]`, `[ BLACKLIST ]`, and `[ REWARDS ]` without modal popups.
+- **Blacklist Filter**: Ignore specific chat users with fast addition and removal (via button or `Delete` key).
 
 ## Built with
-- Python
+- Python 3
 - PyQt5
-- TwitchIO 2.7.0
+- TwitchIO
 - pywin32 (Windows SAPI5)
 
 ## Requirements
-- Windows
-- At least one SAPI5 voice installed
-- A Twitch OAuth token and your channel name
-
-## Installation
-1. Open the [Releases](../../releases) page
-2. Download `TwitchTTS.exe` from the latest version
-3. Run the `.exe` file
-
-## Usage
-1. Enter your Twitch token and channel name on the **Main** tab
-2. Choose a voice and set the volume
-3. Press **Start**
-4. Send `!tts your text` in chat, or any message starting with `!`
-5. To ignore a user, add their nickname on the **Blacklist** tab
-
-## Settings
-Settings are saved to `settings.json` next to the `.exe`.
-If you enable "Remember token", the token is stored there as plain text,
-so do not share this file.
+- Windows 10 / 11 (64-bit)
+- Twitch OAuth token (`oauth:xxxxxx`) and channel name
 
 ## Run from source
-```
+```bash
 pip install -r requirements.txt
 python app.py
 ```
+
+## Build Executable (.exe)
+To package into a single standalone `.exe` using PyInstaller:
+
+```bash
+pip install pyinstaller
+pyinstaller TwitchTTS.spec
+```
+Or simply double-click `build.bat` on Windows.
+The compiled executable will be placed in the `dist/` directory: `dist/TwitchTTS.exe`.
+
+## Settings
+Settings are persisted automatically to `settings.json` next to the executable (channel, selected voice, volume, blacklist, UI language, and optionally the OAuth token).
