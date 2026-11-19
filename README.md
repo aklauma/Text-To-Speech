@@ -20,21 +20,15 @@ Minimalist pixelated desktop application that reads Twitch chat messages aloud u
 - Windows 10 / 11 (64-bit)
 - Twitch OAuth token (`oauth:xxxxxx`) and channel name
 
+## Installation
+1. Download `TwitchTTS.exe` from [Releases](../../releases).
+2. Run `TwitchTTS.exe`.
+
 ## Run from source
 ```bash
 pip install -r requirements.txt
 python app.py
 ```
-
-## Build Executable (.exe)
-To package into a single standalone `.exe` using PyInstaller:
-
-```bash
-pip install pyinstaller
-pyinstaller TwitchTTS.spec
-```
-Or simply double-click `build.bat` on Windows.
-The compiled executable will be placed in the `dist/` directory: `dist/TwitchTTS.exe`.
 
 ## Settings
 Settings are persisted automatically to `settings.json` next to the executable (channel, selected voice, volume, blacklist, UI language, and optionally the OAuth token).
